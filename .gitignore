@@ -1,0 +1,27 @@
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Variáveis de ambiente — NUNCA commitar
+.env
+.env.local
+.env.*.local
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build
+android/
+ios/

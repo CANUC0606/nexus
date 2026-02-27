@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "NEXUS",
+    "slug": "nexus-tdah",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#080816"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nexus.tdah",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "O NEXUS usa o microfone para você falar suas tarefas.",
+        "NSSpeechRecognitionUsageDescription": "O NEXUS converte sua voz em texto para entender suas tarefas."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#080816"
+      },
+      "package": "com.nexus.tdah",
+      "permissions": [
+        "RECORD_AUDIO",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "SYSTEM_ALERT_WINDOW"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#8B5CF6",
+          "sounds": []
+        }
+      ]
+    ],
+    "scheme": "nexus",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
