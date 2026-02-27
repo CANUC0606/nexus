@@ -1,5 +1,5 @@
 // app/(tabs)/index.tsx — Tela de Chat Principal
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -28,12 +28,11 @@ export default function ChatScreen() {
   const energia        = useEnergy();
 
   const [orbEstado, setOrbEstado] = useState<OrbEstado>('idle');
-  const { estado: vozEstado, iniciarGravacao, pararGravacao, falar } = useVoice();
 
-  const enviar = useCallback(async (texto: string) => {
-    if (!texto.trim() || carregando) return;
+  const enviar = useCallback(async (texto?: string) => {
+    const msg = (texto ?? input).trim();
+    if (!msg || carregando) return;
 
-    const msg = texto.trim();
     setInput('');
 
     // Adicionar mensagem do usuário
@@ -77,7 +76,15 @@ export default function ChatScreen() {
     } finally {
       setCarregando(false);
     }
-  }, [carregando, historico, perfil]);
+  }, [carregando, historico, perfil, input]);
+
+  // Callback de voz → texto: auto-envia a transcrição
+  const handleTranscricao = useCallback((texto: string) => {
+    setInput(texto);
+    enviar(texto);
+  }, [enviar]);
+
+  const { estado: vozEstado, iniciarGravacao, pararGravacao, falar, erro: vozErro } = useVoice(handleTranscricao);
 
   const toggleVoz = () => {
     if (vozEstado === 'gravando') {
@@ -86,6 +93,14 @@ export default function ChatScreen() {
       iniciarGravacao();
     }
   };
+
+  // Sincroniza o estado visual do Orb com o estado do hook de voz
+  useEffect(() => {
+    if (vozEstado === 'gravando') setOrbEstado('escutando');
+    else if (vozEstado === 'processando') setOrbEstado('pensando');
+    else if (vozEstado === 'falando') setOrbEstado('falando');
+    else setOrbEstado('idle');
+  }, [vozEstado]);
 
   return (
     <KeyboardAvoidingView
@@ -96,7 +111,7 @@ export default function ChatScreen() {
       {/* Top bar */}
       <View style={[styles.topbar, { paddingTop: insets.top + 12 }]}>
         <View style={styles.topbarLeft}>
-          <Orb estado={orbEstado} tamanho={36} onPress={() => {}} />
+          <Orb estado={orbEstado} tamanho={36} onPress={toggleVoz} />
           <View>
             <Text style={styles.topbarName}>NEXUS</Text>
             <Text style={styles.topbarState}>
@@ -135,6 +150,21 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* Indicador de transcrição de voz */}
+      {vozEstado === 'processando' && (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={Colors.cyan} />
+          <Text style={styles.loadingText}>Transcrevendo áudio...</Text>
+        </View>
+      )}
+
+      {/* Erro de voz */}
+      {vozErro && (
+        <View style={styles.loadingRow}>
+          <Text style={[styles.loadingText, { color: Colors.rose }]}>⚠ {vozErro}</Text>
+        </View>
+      )}
+
       {/* Input */}
       <View style={[styles.inputArea, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.inputWrap}>
@@ -146,13 +176,14 @@ export default function ChatScreen() {
             placeholderTextColor={Colors.text3}
             multiline
             returnKeyType="send"
-            onSubmitEditing={() => enviar(input)}
+            onSubmitEditing={() => enviar()}
+            onFocus={() => { if (vozEstado === 'gravando') pararGravacao(); }}
             blurOnSubmit
           />
         </View>
         <Pressable
           style={[styles.voiceBtn, vozEstado === 'gravando' && styles.voiceBtnAtivo]}
-          onPress={input.trim() ? () => enviar(input) : toggleVoz}
+          onPress={input.trim() ? () => enviar() : toggleVoz}
         >
           <Text style={styles.voiceBtnIcon}>
             {input.trim() ? '→' : vozEstado === 'gravando' ? '⏹' : '🎙️'}

@@ -1,28 +1,54 @@
-// hooks/useVoice.ts — Input de voz e síntese de fala
-import { useState, useCallback } from 'react';
+// hooks/useVoice.ts — Input de voz (STT via Whisper) e síntese de fala (TTS via expo-speech)
+import { useState, useCallback, useRef } from 'react';
 import * as Speech from 'expo-speech';
-
-// NOTA: Para STT (voz → texto) em produção, use:
-// - expo-speech com @react-native-voice/voice  OU
-// - Whisper API da OpenAI via fetch
-// Por ora, este hook gerencia o TTS (texto → voz) com expo-speech
-// e o estado de gravação para integrar com a UI
+import { Audio } from 'expo-av';
+import { transcreverAudio } from '../services/transcricao';
 
 export type EstadoVoz = 'idle' | 'gravando' | 'processando' | 'falando';
 
 interface UseVoiceReturn {
-  estado:       EstadoVoz;
-  iniciarGravacao: () => void;
-  pararGravacao:   () => void;
+  estado:          EstadoVoz;
+  iniciarGravacao: () => Promise<void>;
+  pararGravacao:   () => Promise<void>;
   falar:           (texto: string) => void;
   pararFala:       () => void;
   estaFalando:     boolean;
+  erro:            string | null;
 }
+
+// Configuração de gravação otimizada para Whisper (m4a / AAC)
+const RECORDING_OPTIONS: Audio.RecordingOptions = {
+  isMeteringEnabled: true,
+  android: {
+    extension:        '.m4a',
+    outputFormat:     Audio.AndroidOutputFormat.MPEG_4,
+    audioEncoder:     Audio.AndroidAudioEncoder.AAC,
+    sampleRate:       16000,
+    numberOfChannels: 1,
+    bitRate:          64000,
+  },
+  ios: {
+    extension:        '.m4a',
+    outputFormat:     Audio.IOSOutputFormat.MPEG4AAC,
+    audioQuality:     Audio.IOSAudioQuality.MEDIUM,
+    sampleRate:       16000,
+    numberOfChannels: 1,
+    bitRate:          64000,
+  },
+  web: {
+    mimeType:  'audio/webm',
+    bitsPerSecond: 64000,
+  },
+};
 
 export function useVoice(
   onTranscricao?: (texto: string) => void
 ): UseVoiceReturn {
   const [estado, setEstado] = useState<EstadoVoz>('idle');
+  const [erro, setErro]     = useState<string | null>(null);
+  const recordingRef        = useRef<Audio.Recording | null>(null);
+
+  // ── TTS (texto → voz) ────────────────────────────────────────────────────
 
   const falar = useCallback((texto: string) => {
     // Remove markdown e JSON antes de falar
@@ -49,18 +75,84 @@ export function useVoice(
     setEstado('idle');
   }, []);
 
-  // STT simulado — integre @react-native-voice/voice aqui
-  const iniciarGravacao = useCallback(() => {
-    setEstado('gravando');
-    // TODO: iniciar gravação real com @react-native-voice/voice
+  // ── STT (voz → texto) via expo-av + Whisper ──────────────────────────────
+
+  const iniciarGravacao = useCallback(async () => {
+    try {
+      setErro(null);
+
+      // Solicitar permissão de microfone
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) {
+        setErro('Permissão de microfone negada.');
+        return;
+      }
+
+      // Configurar modo de áudio para gravação
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      // Criar e iniciar gravação
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync(RECORDING_OPTIONS);
+      await recording.startAsync();
+
+      recordingRef.current = recording;
+      setEstado('gravando');
+    } catch (err) {
+      console.error('Erro ao iniciar gravação:', err);
+      setErro('Não foi possível iniciar a gravação.');
+      setEstado('idle');
+    }
   }, []);
 
-  const pararGravacao = useCallback(() => {
+  const pararGravacao = useCallback(async () => {
+    const recording = recordingRef.current;
+    if (!recording) {
+      setEstado('idle');
+      return;
+    }
+
     setEstado('processando');
-    // TODO: parar gravação e processar transcrição
-    // Por ora, simula volta ao idle após 1s
-    setTimeout(() => setEstado('idle'), 1000);
-  }, []);
+
+    try {
+      // Parar gravação e obter URI do arquivo
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      recordingRef.current = null;
+
+      // Reset audio mode
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+      });
+
+      if (!uri) {
+        throw new Error('URI do áudio não encontrada.');
+      }
+
+      // Enviar para Whisper API e obter transcrição
+      const texto = await transcreverAudio(uri);
+
+      if (texto && onTranscricao) {
+        onTranscricao(texto);
+      } else if (!texto) {
+        setErro('Não consegui entender. Tente novamente.');
+      }
+
+      setEstado('idle');
+    } catch (err: any) {
+      console.error('Erro na transcrição:', err);
+      setErro(
+        err?.message?.includes('OPENAI_API_KEY')
+          ? 'Chave da OpenAI não configurada.'
+          : 'Erro ao transcrever áudio. Tente novamente.'
+      );
+      recordingRef.current = null;
+      setEstado('idle');
+    }
+  }, [onTranscricao]);
 
   return {
     estado,
@@ -69,5 +161,6 @@ export function useVoice(
     falar,
     pararFala,
     estaFalando: estado === 'falando',
+    erro,
   };
 }
