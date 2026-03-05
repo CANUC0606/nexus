@@ -16,7 +16,9 @@
       "bundleIdentifier": "com.nexus.tdah",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "O NEXUS usa o microfone para você falar suas tarefas.",
-        "NSSpeechRecognitionUsageDescription": "O NEXUS converte sua voz em texto para entender suas tarefas."
+        "NSSpeechRecognitionUsageDescription": "O NEXUS converte sua voz em texto para entender suas tarefas.",
+        "NSCameraUsageDescription": "O NEXUS usa a camera para ler textos e te ajudar com OCR.",
+        "NSPhotoLibraryUsageDescription": "O NEXUS acessa sua galeria para extrair texto de imagens."
       }
     },
     "android": {
@@ -27,6 +29,7 @@
       "package": "com.nexus.tdah",
       "permissions": [
         "RECORD_AUDIO",
+        "CAMERA",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "SYSTEM_ALERT_WINDOW"
@@ -34,6 +37,13 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O NEXUS acessa suas fotos para ler texto com OCR.",
+          "cameraPermission": "O NEXUS usa sua camera para capturar texto com OCR."
+        }
+      ],
       [
         "expo-notifications",
         {

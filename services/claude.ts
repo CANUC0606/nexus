@@ -2,7 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SYSTEM_PROMPT } from '../constants/prompts';
 import { PerfilVivo } from '../store/userStore';
-import { Mensagem, Tarefa, MicroEtapa } from '../store/taskStore';
+import { Mensagem, Tarefa } from '../store/taskStore';
 
 const client = new Anthropic({
   apiKey: process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY,
@@ -11,8 +11,9 @@ const client = new Anthropic({
 
 // Converte o histórico interno para o formato da API
 function formatarHistorico(historico: Mensagem[]) {
-  return historico.slice(-10).map((m) => ({       // últimas 10 mensagens
-    role:    m.role === 'user' ? 'user' : 'assistant' as const,
+  return historico.slice(-10).map((m): Anthropic.Messages.MessageParam => ({
+    // Limitamos o contexto para reduzir custo e latência.
+    role:    m.role === 'user' ? 'user' : 'assistant',
     content: m.content,
   }));
 }
@@ -102,4 +103,19 @@ export async function gerarGatilho(
   });
 
   return response.content[0].type === 'text' ? response.content[0].text : '';
+}
+
+export async function responderComandoRapido(
+  systemInstruction: string,
+  userContent: string,
+  maxTokens = 500
+): Promise<string> {
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: maxTokens,
+    system: systemInstruction,
+    messages: [{ role: 'user', content: userContent }],
+  });
+
+  return response.content[0]?.type === 'text' ? response.content[0].text.trim() : '';
 }

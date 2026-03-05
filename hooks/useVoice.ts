@@ -145,8 +145,8 @@ export function useVoice(
     } catch (err: any) {
       console.error('Erro na transcrição:', err);
       setErro(
-        err?.message?.includes('OPENAI_API_KEY')
-          ? 'Chave da OpenAI não configurada.'
+        err?.message?.includes('ANTHROPIC_API_KEY')
+          ? 'Chave da Anthropic não configurada.'
           : 'Erro ao transcrever áudio. Tente novamente.'
       );
       recordingRef.current = null;
